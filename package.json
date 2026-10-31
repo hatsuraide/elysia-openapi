@@ -1,6 +1,6 @@
 {
     "name": "@hatsura/elysia-openapi",
-    "version": "1.4.18",
+    "version": "1.4.19",
     "description": "Plugin for Elysia to auto-generate API documentation",
     "author": {
         "name": "hatsuraide",
