@@ -24,3 +24,5 @@ tsconfig.dts.json
 
 src
 build.ts
+bunfig.toml
+*.tgz

@@ -1,38 +1,58 @@
 import { $ } from 'bun'
-import { build, type Options } from 'tsup'
+import { readdirSync, renameSync } from 'node:fs'
+import { join } from 'node:path'
+import { build } from 'tsup'
 
-await $`rm -rf dist`
+const entry = {
+	index: 'src/index.ts',
+	openapi: 'src/openapi.ts',
+	types: 'src/types.ts',
+	'gen/index': 'src/gen/index.ts',
+	'swagger/index': 'src/swagger/index.ts',
+	'swagger/types': 'src/swagger/types.ts',
+	'scalar/index': 'src/scalar/index.ts',
+	'scalar/theme': 'src/scalar/theme.ts'
+}
 
-const tsupConfig: Options = {
-	entry: ['src/**/*.ts'],
-	splitting: false,
-	sourcemap: false,
-	clean: true,
-	bundle: true,
-	external: ['typescript', '@sinclair/typebox']
-} satisfies Options
-
-await Promise.all([
-	// ? tsup esm
-	build({
+const configs = [
+	{
+		entry,
+		format: ['esm'],
 		outDir: 'dist',
-		format: 'esm',
+		outExtension: () => ({ js: '.mjs' }),
 		target: 'node20',
-		cjsInterop: false,
-		...tsupConfig
-	}),
-	// ? tsup cjs
-	build({
+		dts: true,
+		clean: true,
+		splitting: false,
+		sourcemap: false,
+		external: ['typescript', '@sinclair/typebox']
+	},
+	{
+		entry,
+		format: ['cjs'],
 		outDir: 'dist/cjs',
-		format: 'cjs',
+		outExtension: () => ({ js: '.js' }),
 		target: 'node20',
-		// dts: true,
-		...tsupConfig
+		dts: true,
+		clean: false,
+		splitting: false,
+		sourcemap: false,
+		external: ['typescript', '@sinclair/typebox']
+	}
+]
+
+for (const config of configs)
+	await build({
+		...config,
+		format: [...config.format] as ('esm' | 'cjs')[]
 	})
-])
 
-await $`tsc --project tsconfig.dts.json`
+// tsup names ESM declaration files `.d.mts`; the published package uses `.d.ts`.
+for (const file of readdirSync('dist', { recursive: true })) {
+	const path = String(file)
+	if (!path.endsWith('.d.mts')) continue
 
-await Promise.all([$`cp dist/*.d.ts dist/cjs`])
+	renameSync(join('dist', path), join('dist', path.slice(0, -6) + '.d.ts'))
+}
 
-process.exit()
+if (import.meta.main) await $`tsc --noEmit`

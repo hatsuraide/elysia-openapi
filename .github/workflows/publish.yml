@@ -3,46 +3,46 @@ name: Publish
 on:
   release:
     types: [published]
+  workflow_dispatch:
 
 defaults:
   run:
     shell: bash
 
 permissions:
+  contents: read
   id-token: write
-
-env:
-  # Enable debug logging for actions
-  ACTIONS_RUNNER_DEBUG: true
 
 jobs:
   publish-npm:
-    name: 'Publish: npm Registry'
+    name: Publish to npm
     runs-on: ubuntu-latest
     steps:
-      - name: 'Checkout'
-        uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v6
 
-      - name: 'Setup Bun'
-        uses: oven-sh/setup-bun@v1
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
-          registry-url: "https://registry.npmjs.org"
 
-      - uses: actions/setup-node@v5
+      - name: Setup Node (npm with OIDC support)
+        uses: actions/setup-node@v6
         with:
-          node-version: '24.x'
+          node-version: '24'
           registry-url: 'https://registry.npmjs.org'
+          package-manager-cache: false
 
       - name: Install packages
-        run: bun install
+        run: bun install --frozen-lockfile
 
-      - name: Build code
+      - name: Build
         run: bun run build
 
       - name: Test
         run: bun run test
 
-      - name: 'Publish'
-        run: |
-          NODE_AUTH_TOKEN="" npm publish --provenance --access=public
+      # No NPM_TOKEN: npm detects GitHub Actions OIDC and exchanges the
+      # id-token for a short-lived publish token. Provenance is automatic.
+      - name: Publish
+        run: npm publish --access public

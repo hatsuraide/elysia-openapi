@@ -1,7 +1,10 @@
+node_modules/
+dist/
+build/
 .DS_Store
-
-node_modules
-.pnpm-debug.log
-dist
-
-build
+*.tsbuildinfo
+*.log
+coverage/
+.ElysiaAutoOpenAPI/
+test/node/*/node_modules/
+test/node/*/package-lock.json

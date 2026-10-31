@@ -23,30 +23,8 @@ describe('Swagger', () => {
 		await app.modules
 
 		const res = await app.handle(req('/openapi/json')).then((x) => x.json())
-		expect(res.openapi).toBe('3.1.2')
+		expect(res.openapi).toBe('3.0.3')
 		await SwaggerParser.validate(res).catch((err) => fail(err))
-	})
-
-	it('emits OpenAPI 3.0 nullable schemas when configured', async () => {
-		const app = new Elysia()
-			.use(openapi({ openapiVersion: '3.0.3' }))
-			.get('/nullable', () => null, {
-				response: t.Union([t.String(), t.Null()])
-			})
-
-		await app.modules
-
-		const document = await app
-			.handle(req('/openapi/json'))
-			.then((response) => response.json())
-		const schema =
-			document.paths['/nullable'].get.responses['200'].content[
-				'text/plain'
-			].schema
-
-		expect(document.openapi).toBe('3.0.3')
-		expect(schema).toMatchObject({ type: 'string', nullable: true })
-		await SwaggerParser.validate(document).catch((error) => fail(error))
 	})
 
 	it('use custom Swagger version', async () => {
@@ -165,6 +143,82 @@ describe('Swagger', () => {
 		const expected = `"persistAuthorization":true`
 
 		expect(res.trim().includes(expected.trim())).toBe(true)
+	})
+
+	it('supports one UI with multiple document sources', async () => {
+		const app = new Elysia().use(
+			openapi({
+				path: '/docs',
+				provider: 'scalar',
+				documentations: [
+					{
+						name: 'Public API',
+						specPath: '/docs/public.json',
+						documentation: {
+							info: {
+								title: 'Public API',
+								version: '1.0.0'
+							}
+						}
+					},
+					{
+						name: 'Internal API',
+						specPath: '/docs/internal.json',
+						documentation: {
+							info: {
+								title: 'Internal API',
+								version: '1.0.0'
+							}
+						}
+					}
+				]
+			})
+		)
+
+		await app.modules
+
+		const page = await app.handle(req('/docs')).then((x) => x.text())
+		expect(page.includes('/docs/public.json')).toBe(true)
+		expect(page.includes('/docs/internal.json')).toBe(true)
+		expect(page.includes('Public API')).toBe(true)
+		expect(page.includes('Internal API')).toBe(true)
+		expect(page.includes('[{"version"')).toBe(true)
+		expect(page.includes('"slug":"public-api"')).toBe(true)
+
+		const publicSpec = await app
+			.handle(req('/docs/public.json'))
+			.then((x) => x.json())
+		expect(publicSpec.openapi).toBe('3.0.3')
+		expect(publicSpec.info.title).toBe('Public API')
+
+		const internalSpec = await app
+			.handle(req('/docs/internal.json'))
+			.then((x) => x.json())
+		expect(internalSpec.openapi).toBe('3.0.3')
+		expect(internalSpec.info.title).toBe('Internal API')
+	})
+
+	it('supports provider-less UI with custom spec path', async () => {
+		const app = new Elysia().use(
+			openapi({
+				provider: null,
+				documentations: [
+					{
+						specPath: '/docs/hidden/openapi.json'
+					}
+				]
+			})
+		)
+
+		await app.modules
+
+		const hiddenPage = await app.handle(req('/openapi'))
+		expect(hiddenPage.status).toBe(404)
+
+		const spec = await app
+			.handle(req('/docs/hidden/openapi.json'))
+			.then((x) => x.json())
+		expect(spec.openapi).toBe('3.0.3')
 	})
 
 	it('should not return content response when using Void type', async () => {
